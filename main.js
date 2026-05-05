@@ -65,7 +65,7 @@ io.on('connection', (socket) => {
 
                 const userData = {
                     username: generateUsername(),
-                    password: Math.random().toString(36).slice(-10) + '!', // Rastgele şifre
+                    password: account.password, // E-posta şifresini OSM şifresi olarak kullan
                     email: account.email,
                     mailToken: account.token
                 };
