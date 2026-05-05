@@ -18,8 +18,9 @@ class MailSystem {
 
     /**
      * Mail.tm üzerinden yeni bir hesap oluşturur.
+     * 429 (Rate Limit) hatası için retry mantığı eklendi.
      */
-    async createAccount() {
+    async createAccount(retryCount = 0) {
         try {
             // 1. Kullanılabilir domainleri al
             const domainsRes = await axios.get(`${this.apiBase}/domains`);
@@ -27,31 +28,40 @@ class MailSystem {
 
             // 2. Rastgele bilgiler oluştur
             const id = Math.random().toString(36).substring(2, 10);
-            this.address = `${id}@${domain}`;
-            this.password = 'OsmBot123!';
+            const address = `${id}@${domain}`;
+            const password = 'OsmBot123!';
 
             // 3. Hesabı oluştur
             await axios.post(`${this.apiBase}/accounts`, {
-                address: this.address,
-                password: this.password
+                address: address,
+                password: password
             });
 
             // 4. Token (JWT) al
             const tokenRes = await axios.post(`${this.apiBase}/token`, {
-                address: this.address,
-                password: this.password
+                address: address,
+                password: password
             });
+            
+            this.address = address;
+            this.password = password;
             this.token = tokenRes.data.token;
 
             logger.info(`Mail.tm hesabı oluşturuldu: ${this.address}`);
             
             return {
                 email: this.address,
-                token: this.token // JWT token'ı kullanacağız
+                token: this.token
             };
         } catch (error) {
+            if (error.response && error.response.status === 429 && retryCount < 3) {
+                const waitTime = (retryCount + 1) * 30000; // 30s, 60s, 90s...
+                logger.warn(`Mail.tm Rate Limit (429) algılandı. ${waitTime / 1000} saniye bekleniyor...`);
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+                return this.createAccount(retryCount + 1);
+            }
+            
             logger.error(`Mail.tm hesap oluşturma hatası: ${error.message}`);
-            if (error.response) logger.error(JSON.stringify(error.response.data));
             throw error;
         }
     }

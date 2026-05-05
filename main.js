@@ -42,6 +42,13 @@ io.on('connection', (socket) => {
                     socket.emit('log', { type: 'error', msg: `Hesap ${id} oluşturulurken bir sorun oluştu.` });
                 }
                 await sessionManager.closeContext(context);
+
+                // Hesaplar arası rastgele bekleme (15-30 sn)
+                if (i < 9) {
+                    const waitTime = Math.floor(Math.random() * 15000) + 15000;
+                    logger.info(`${waitTime / 1000} saniye bekleniyor...`);
+                    await new Promise(resolve => setTimeout(resolve, waitTime));
+                }
             }
             socket.emit('finished');
         } catch (error) {
