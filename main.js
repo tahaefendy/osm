@@ -10,6 +10,7 @@ const { logout } = require('./src/modules/logout');
 const { generateUsername } = require('./src/modules/usernameGenerator');
 const MailSystem = require('./src/mail');
 const logger = require('./src/utils/logger');
+const { saveRegistration } = require('./src/utils/database');
 
 const app = express();
 const server = http.createServer(app);
@@ -37,9 +38,9 @@ const saveToLog = (data) => {
 io.on('connection', (socket) => {
     logger.system('Bağlantı sağlandı.');
 
-        socket.on('start-bot', async ({ link, count }) => {
-            const accountCount = parseInt(count) || 10;
-            logger.info(`Sipariş alındı: ${accountCount} adet.`);
+    socket.on('start-bot', async ({ link, count, key, userId }) => {
+        const accountCount = parseInt(count) || 10;
+        logger.info(`Sipariş alındı: ${accountCount} adet. Key: ${key || 'Yok'} | UserID: ${userId || 'Anonim'}`);
         
         socket.emit('log', { type: 'info', msg: 'Siparişiniz işleme alındı, sistem hazırlanıyor...' });
 
@@ -47,10 +48,10 @@ io.on('connection', (socket) => {
             const mailer = new MailSystem();
             await mailer.init();
 
+            let successCount = 0;
             for (let i = 0; i < accountCount; i++) {
                 const currentId = i + 1;
-                const progress = Math.round((currentId / accountCount) * 100);
-
+                
                 socket.emit('log', { type: 'system', msg: `[${currentId}/${accountCount}] Hesap hazırlanıyor...` });
 
                 const context = await sessionManager.createContext();
@@ -70,21 +71,34 @@ io.on('connection', (socket) => {
                 }, mailer);
                 
                 if (success) {
-                    logger.success(`Hesap ${currentId} tamamlandı.`);
+                    successCount++;
+                    const progress = Math.round((successCount / accountCount) * 100);
+                    logger.success(`Hesap ${currentId} tamamlandı. Toplam: ${successCount}`);
                     
-                    // Detaylı log dosyasına kaydet
+                    // 1. Yerel log dosyasına kaydet
                     saveToLog({ link, username, email: emailAccount.email });
+
+                    // 2. Veritabanına kaydet (Admin/Kullanıcı paneli için)
+                    await saveRegistration({
+                        key,
+                        userId,
+                        link,
+                        username,
+                        email: emailAccount.email
+                    });
 
                     socket.emit('progress', { 
                         percent: progress, 
-                        msg: `[${currentId}/${accountCount}] İşlem başarılı! (%${progress})` 
+                        count: successCount,
+                        msg: `[${successCount}/${accountCount}] Hesap başarıyla oluşturuldu.` 
                     });
                     
-                    await logout(page);
                 } else {
-                    socket.emit('log', { type: 'error', msg: `[${currentId}/${accountCount}] Bir aksaklık oluştu, sıradaki hesaba geçiliyor.` });
+                    socket.emit('log', { type: 'error', msg: `[${currentId}/${accountCount}] Kayıt başarısız oldu, sıradaki denemeye geçiliyor.` });
                 }
 
+                // Her durumda oturumu kapat ve temizle
+                await logout(page);
                 await sessionManager.closeContext(context);
 
                 // Bekleme süresi
@@ -95,8 +109,11 @@ io.on('connection', (socket) => {
                 }
             }
 
-            socket.emit('finished', { msg: 'Tüm sipariş başarıyla tamamlandı!' });
-            logger.system('Sipariş tamamlandı.');
+            socket.emit('finished', { 
+                successCount,
+                msg: `${accountCount} denemeden ${successCount} tanesi başarıyla tamamlandı.` 
+            });
+            logger.system(`Sipariş tamamlandı. Başarılı: ${successCount}`);
 
         } catch (error) {
             logger.error(`Sistem hatası: ${error.message}`);
@@ -109,3 +126,4 @@ const PORT = process.env.PORT || 8080;
 server.listen(PORT, '0.0.0.0', () => {
     logger.system(`Servis ${PORT} portunda hazır.`);
 });
+

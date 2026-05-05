@@ -15,13 +15,19 @@ module.exports = {
     },
     registration: {
         selectors: {
-            acceptBtn: 'button.btn-new.btn-orange:has-text("Accept")',
+            // Hem "Accept" hem "Kabul et" metinlerini kapsar
+            acceptBtn: 'button.btn-new.btn-orange:has-text("Accept"), button.btn-new.btn-orange:has-text("Kabul et")',
+            
+            // Sınıf bazlı (dil bağımsız)
             signupEmailBtn: 'button.btn-new.btn-sso.btn-wide.btn-orange',
+            
             usernameInput: '#managername',
             usernameSubmit: '#submit-managername',
+            
             emailInput: '#email',
             emailSubmit: '#submit-email',
-            suggestBtn: '.btn-suggest' // Opsiyonel: Kullanıcı adı doluysa öneri butonu
+            
+            suggestBtn: '.btn-suggest, button:has-text("Suggest"), button:has-text("Öner")'
         }
     }
 };

@@ -29,25 +29,27 @@ class RegisterFlow {
 
     async clickAccept() {
         try {
-            logger.info('Accept butonuna basılıyor...');
-            await this.page.waitForSelector(this.selectors.acceptBtn, { timeout: 15000 });
-            await this.page.click(this.selectors.acceptBtn);
+            logger.info('Accept/Kabul et butonuna basılıyor...');
+            // Hem İngilizce hem Türkçe metni kontrol et
+            const selector = this.selectors.acceptBtn;
+            await this.page.waitForSelector(selector, { timeout: 10000 });
+            await this.page.click(selector);
             await randomDelay();
         } catch (error) {
-            await this.takeScreenshot('clickAccept');
-            throw new Error(`Accept hatası: ${error.message}`);
+            logger.info('Accept butonu görülmedi veya zaten geçilmiş, devam ediliyor...');
         }
     }
 
     async clickSignupWithEmail() {
         try {
-            logger.info('Sign up with email butonuna basılıyor...');
-            await this.page.waitForSelector(this.selectors.signupEmailBtn, { timeout: 10000 });
-            await this.page.click(this.selectors.signupEmailBtn);
+            logger.info('E-posta ile kayıt butonuna basılıyor...');
+            const selector = this.selectors.signupEmailBtn;
+            await this.page.waitForSelector(selector, { timeout: 10000 });
+            await this.page.click(selector);
             await randomDelay();
         } catch (error) {
             await this.takeScreenshot('clickSignupWithEmail');
-            throw new Error(`Signup button hatası: ${error.message}`);
+            throw new Error(`Kayıt butonu bulunamadı (Dil veya selector kaynaklı olabilir): ${error.message}`);
         }
     }
 
@@ -67,7 +69,16 @@ class RegisterFlow {
         try {
             logger.info('Kullanıcı adı onaylanıyor...');
             await this.page.click(this.selectors.usernameSubmit);
-            await randomDelay();
+            await randomDelay(3000, 5000);
+
+            // Eğer kullanıcı adı doluysa öneri çıkabilir
+            const suggestBtn = this.selectors.suggestBtn;
+            if (await this.page.$(suggestBtn)) {
+                logger.info('Kullanıcı adı alınmış, öneri butonuna basılıyor...');
+                await this.page.click(suggestBtn);
+                await randomDelay();
+                await this.page.click(this.selectors.usernameSubmit);
+            }
         } catch (error) {
             await this.takeScreenshot('submitUsername');
             throw new Error(`Username onayı hatası: ${error.message}`);
@@ -88,21 +99,58 @@ class RegisterFlow {
 
     async submitEmail() {
         try {
-            logger.info('E-posta onaylanıyor...');
+            logger.info('E-posta onaylanıyor (Kod gönderiliyor)...');
             await this.page.click(this.selectors.emailSubmit);
-            await randomDelay(5000, 8000); // Kayıt sonrası ekstra bekleme
+            await randomDelay(5000, 8000); 
         } catch (error) {
             await this.takeScreenshot('submitEmail');
             throw new Error(`Email onayı hatası: ${error.message}`);
         }
     }
 
+    async enterCode(code) {
+        try {
+            logger.info(`Doğrulama kodu giriliyor: ${code}`);
+            const codeSelectors = [
+                'input#code', 
+                'input[name="code"]', 
+                'input[placeholder*="code"]',
+                'input[placeholder*="kod"]',
+                '.otp-input input'
+            ];
+            
+            let found = false;
+            for (const selector of codeSelectors) {
+                if (await this.page.$(selector)) {
+                    await this.page.fill(selector, code);
+                    found = true;
+                    break;
+                }
+            }
+            
+            if (found) {
+                logger.info('Kod girildi, onaylanıyor...');
+                await this.page.keyboard.press('Enter');
+                await randomDelay(5000, 8000);
+            } else {
+                await this.takeScreenshot('code_field_not_found');
+                logger.error('Kod giriş alanı sayfada bulunamadı!');
+            }
+        } catch (error) {
+            await this.takeScreenshot('enterCode');
+            throw new Error(`Kod girişi hatası: ${error.message}`);
+        }
+    }
+
     async checkSuccess() {
         try {
-            // Başarıyı doğrulamak için sayfada bir element kontrolü yapılabilir
-            logger.success('Hesap oluşturma adımları tamamlandı.');
+            // Dashboard'a ulaşıldığını her iki dilde de ortak olan elementlerden anla
+            await this.page.waitForSelector('#manager-profile, .page-main-content, #news-container', { timeout: 25000 });
+            logger.success('Hesap başarıyla oluşturuldu ve doğrulandı.');
             return true;
         } catch (error) {
+            await this.takeScreenshot('registration_failed_at_end');
+            logger.warn('Kayıt doğrulanamadı (Dashboard yüklenmedi).');
             return false;
         }
     }
@@ -112,6 +160,11 @@ class RegisterFlow {
      */
     async execute(inviteLink, userData, mailer) {
         try {
+            // Önce temiz bir başlangıç için logout sayfasına git (Varsa eski oturumu düşürür)
+            logger.info('Güvenli başlangıç için oturum temizleniyor...');
+            await this.page.goto('https://tr.onlinesoccermanager.com/Logout', { waitUntil: 'networkidle' }).catch(() => {});
+            
+            logger.info(`İşlem başlatıldı: ${inviteLink}`);
             await this.page.goto(inviteLink, { waitUntil: 'networkidle', timeout: 60000 });
             
             await this.clickAccept();
@@ -119,16 +172,19 @@ class RegisterFlow {
             await this.fillUsername(userData.username);
             await this.submitUsername();
             
-            // Eğer username doluysa suggestion çıkabilir, onu geçmek gerekebilir
-            // (Bu adım dinamiktir, gerekirse handleUsernameSuggestion eklenebilir)
-
             await this.fillEmail(userData.email);
             await this.submitEmail();
 
-            // Eğer mail doğrulaması gerekliyse burada mailer kullanılır
+            // Mail doğrulaması
             if (mailer) {
-                logger.info('Mail doğrulaması bekleniyor...');
-                // ... mailer.waitForCode mantığı
+                logger.info('E-posta üzerinden onay kodu bekleniyor...');
+                const code = await mailer.waitForCode(userData.mailToken);
+                if (code) {
+                    await this.enterCode(code);
+                } else {
+                    logger.error('Doğrulama kodu e-postaya gelmedi!');
+                    return false;
+                }
             }
 
             return await this.checkSuccess();
