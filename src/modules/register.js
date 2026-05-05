@@ -57,7 +57,8 @@ class RegisterFlow {
         try {
             logger.info(`Kullanıcı adı giriliyor: ${username}`);
             await this.page.waitForSelector(this.selectors.usernameInput);
-            await this.page.fill(this.selectors.usernameInput, username);
+            // Daha insansı görünmesi için tek tek yazdırıyoruz
+            await this.page.type(this.selectors.usernameInput, username, { delay: Math.floor(Math.random() * 100) + 50 });
             await randomDelay();
         } catch (error) {
             await this.takeScreenshot('fillUsername');
@@ -68,6 +69,8 @@ class RegisterFlow {
     async submitUsername() {
         try {
             logger.info('Kullanıcı adı onaylanıyor...');
+            // Tıklamadan önce butona odaklan
+            await this.page.focus(this.selectors.usernameSubmit);
             await this.page.click(this.selectors.usernameSubmit);
             await randomDelay(3000, 5000);
 
@@ -89,7 +92,8 @@ class RegisterFlow {
         try {
             logger.info(`E-posta adresi giriliyor: ${email}`);
             await this.page.waitForSelector(this.selectors.emailInput);
-            await this.page.fill(this.selectors.emailInput, email);
+            // Daha insansı görünmesi için tek tek yazdırıyoruz
+            await this.page.type(this.selectors.emailInput, email, { delay: Math.floor(Math.random() * 80) + 40 });
             await randomDelay();
         } catch (error) {
             await this.takeScreenshot('fillEmail');
