@@ -105,7 +105,9 @@ class RegisterFlow {
         try {
             logger.info('E-posta onaylanıyor (Kod gönderiliyor)...');
             await this.page.click(this.selectors.emailSubmit);
-            await randomDelay(5000, 8000); 
+            // Sayfanın değişmesini bekle
+            await this.page.waitForLoadState('networkidle').catch(() => {});
+            await randomDelay(3000, 5000); 
         } catch (error) {
             await this.takeScreenshot('submitEmail');
             throw new Error(`Email onayı hatası: ${error.message}`);
@@ -115,14 +117,30 @@ class RegisterFlow {
 
     async checkSuccess() {
         try {
-            // Kod giriş ekranının veya OTP alanının geldiğini teyit et
-            const otpField = 'input#code, input[name="code"], .otp-input, .verify-email-container';
-            await this.page.waitForSelector(otpField, { timeout: 15000 });
-            logger.success('E-posta onay aşamasına ulaşıldı (Referans başarılı sayıldı).');
+            // Başarıyı anlamak için daha geniş bir yelpazede kontrol yapıyoruz
+            const successSelectors = [
+                'input#code', 
+                'input[name="code"]', 
+                'input[type="number"]',
+                'input[placeholder*="code"]',
+                'input[placeholder*="kod"]',
+                '.otp-input', 
+                '.verify-email-container',
+                'h1:has-text("Verify")', 
+                'h1:has-text("Doğrula")',
+                'h2:has-text("Verify")',
+                'h2:has-text("Doğrula")',
+                'div:has-text("Enter the code")',
+                'div:has-text("Kodu girin")'
+            ].join(', ');
+
+            // Biraz bekleyip bu elementlerden herhangi biri var mı bak
+            await this.page.waitForSelector(successSelectors, { timeout: 20000 });
+            logger.success('Kayıt adımı başarıyla geçildi ve doğrulama ekranına ulaşıldı.');
             return true;
         } catch (error) {
-            await this.takeScreenshot('otp_page_timeout');
-            throw new Error('E-posta onay (OTP) ekranına ulaşılamadı. (Captcha çıkmış veya kayıt engellenmiş olabilir)');
+            await this.takeScreenshot('success_check_failed');
+            throw new Error('E-posta onay ekranı tespit edilemedi (Ancak hesap oluşmuş olabilir).');
         }
     }
 
