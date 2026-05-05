@@ -8,7 +8,7 @@ async function saveRegistration(data) {
         // Kendi sitenizin URL'si (Hostinger)
         const apiUrl = 'https://kodteslimal.com/api/osm/save-log';
         
-        await axios.post(apiUrl, {
+        const response = await axios.post(apiUrl, {
             key: data.key,
             userId: data.userId,
             link: data.link,
@@ -19,9 +19,10 @@ async function saveRegistration(data) {
             timeout: 10000
         });
 
+        console.log(`[API_SUCCESS] Veri siteye iletildi: ${data.username}`);
         return true;
     } catch (error) {
-        console.error('[API_ERROR] Kayıt API üzerinden iletilemedi:', error.message);
+        console.error(`[API_ERROR] Veri siteye gönderilemedi (${data.username}):`, error.response ? error.response.status : error.message);
         return false;
     }
 }
