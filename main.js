@@ -1,6 +1,8 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const fs = require('fs');
+const path = require('path');
 const sessionManager = require('./src/core/session');
 const browserManager = require('./src/core/browser');
 const RegisterFlow = require('./src/modules/register');
@@ -19,23 +21,37 @@ const io = new Server(server, {
 });
 
 /**
- * Socket.io üzerinden gelen bağlantıları yönetir.
+ * Başarılı hesapları log dosyasına kaydeder.
  */
+const saveToLog = (data) => {
+    const logDir = path.join(__dirname, 'logs');
+    if (!fs.existsSync(logDir)) fs.mkdirSync(logDir);
+    
+    const logFile = path.join(logDir, 'accounts.log');
+    const timestamp = new Date().toLocaleString('tr-TR');
+    const logEntry = `[${timestamp}] Link: ${data.link} | User: ${data.username} | Email: ${data.email}\n`;
+    
+    fs.appendFileSync(logFile, logEntry);
+};
+
 io.on('connection', (socket) => {
-    logger.system('Web sitesi üzerinden bağlantı sağlandı.');
+    logger.system('Bağlantı sağlandı.');
 
     socket.on('start-bot', async ({ link, count }) => {
-        logger.info(`İşlem başlatıldı. Link: ${link}, Adet: ${count}`);
-        socket.emit('log', { type: 'info', msg: 'Bot sunucusu aktif, işlemler başlatılıyor...' });
+        const accountCount = parseInt(count) || 1;
+        logger.info(`Sipariş alındı: ${accountCount} adet.`);
+        
+        socket.emit('log', { type: 'info', msg: 'Siparişiniz işleme alındı, sistem hazırlanıyor...' });
 
         try {
             const mailer = new MailSystem();
             await mailer.init();
-            const accountCount = parseInt(count) || 1;
 
             for (let i = 0; i < accountCount; i++) {
                 const currentId = i + 1;
-                socket.emit('log', { type: 'system', msg: `Hesap ${currentId}/${accountCount} için hazırlık yapılıyor...` });
+                const progress = Math.round((currentId / accountCount) * 100);
+
+                socket.emit('log', { type: 'system', msg: `[${currentId}/${accountCount}] Hesap hazırlanıyor...` });
 
                 const context = await sessionManager.createContext();
                 const page = await context.newPage();
@@ -45,8 +61,7 @@ io.on('connection', (socket) => {
                 
                 const registerFlow = new RegisterFlow(page);
                 
-                // Web sitesine log gönder
-                socket.emit('log', { type: 'info', msg: `Kullanıcı oluşturuluyor: ${username}` });
+                socket.emit('log', { type: 'info', msg: `[${currentId}/${accountCount}] Kayıt işlemi yapılıyor...` });
 
                 const success = await registerFlow.execute(link, { 
                     username, 
@@ -56,38 +71,41 @@ io.on('connection', (socket) => {
                 
                 if (success) {
                     logger.success(`Hesap ${currentId} tamamlandı.`);
-                    socket.emit('progress', { count: currentId, msg: `Hesap ${currentId} başarıyla tamamlandı.` });
+                    
+                    // Detaylı log dosyasına kaydet
+                    saveToLog({ link, username, email: emailAccount.email });
+
+                    socket.emit('progress', { 
+                        percent: progress, 
+                        msg: `[${currentId}/${accountCount}] İşlem başarılı! (%${progress})` 
+                    });
+                    
                     await logout(page);
                 } else {
-                    logger.error(`Hesap ${currentId} sırasında hata.`);
-                    socket.emit('log', { type: 'error', msg: `Hesap ${currentId} oluşturulurken hata oluştu.` });
+                    socket.emit('log', { type: 'error', msg: `[${currentId}/${accountCount}] Bir aksaklık oluştu, sıradaki hesaba geçiliyor.` });
                 }
 
                 await sessionManager.closeContext(context);
 
-                // Hesaplar arası bekleme
+                // Bekleme süresi
                 if (i < accountCount - 1) {
-                    const wait = Math.floor(Math.random() * 10000) + 10000;
-                    socket.emit('log', { type: 'info', msg: `Bir sonraki hesap için ${wait/1000}sn bekleniyor...` });
+                    const wait = Math.floor(Math.random() * 10000) + 15000;
+                    socket.emit('log', { type: 'info', msg: 'Sistem dinlendiriliyor, lütfen bekleyin...' });
                     await new Promise(r => setTimeout(r, wait));
                 }
             }
 
-            socket.emit('finished');
-            logger.system('Tüm işlemler tamamlandı.');
+            socket.emit('finished', { msg: 'Tüm sipariş başarıyla tamamlandı!' });
+            logger.system('Sipariş tamamlandı.');
 
         } catch (error) {
             logger.error(`Sistem hatası: ${error.message}`);
-            socket.emit('log', { type: 'error', msg: `Kritik Hata: ${error.message}` });
+            socket.emit('log', { type: 'error', msg: 'Sistemde geçici bir yoğunluk var, lütfen daha sonra tekrar deneyin.' });
         }
-    });
-
-    socket.on('disconnect', () => {
-        logger.warn('Web sitesi bağlantısı kesildi.');
     });
 });
 
 const PORT = process.env.PORT || 8080;
 server.listen(PORT, '0.0.0.0', () => {
-    logger.system(`Bot Sunucusu ${PORT} portunda dinlemede...`);
+    logger.system(`Servis ${PORT} portunda hazır.`);
 });
