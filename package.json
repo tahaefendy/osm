@@ -1,9 +1,26 @@
 {
+  "name": "osm",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tahaefendy/osm.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/tahaefendy/osm/issues"
+  },
+  "homepage": "https://github.com/tahaefendy/osm#readme",
   "dependencies": {
-    "axios": "^1.16.0",
-    "express": "^5.2.1",
-    "playwright-chromium": "^1.59.1",
-    "socket.io": "^4.8.3",
-    "socks-proxy-agent": "^10.0.0"
+    "playwright": "^1.59.1",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
   }
 }
