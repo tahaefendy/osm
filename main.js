@@ -90,6 +90,7 @@ io.on('connection', (socket) => {
                     socket.emit('progress', { 
                         percent: progress, 
                         count: successCount,
+                        total: accountCount,
                         msg: `[${successCount}/${accountCount}] Hesap başarıyla oluşturuldu.` 
                     });
                     
