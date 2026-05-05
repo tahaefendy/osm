@@ -91,6 +91,7 @@ io.on('connection', (socket) => {
                         percent: progress, 
                         count: successCount,
                         total: accountCount,
+                        type: 'success',
                         msg: `[${successCount}/${accountCount}] Hesap başarıyla oluşturuldu.` 
                     });
                     
