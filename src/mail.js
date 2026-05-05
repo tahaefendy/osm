@@ -1,58 +1,111 @@
 const axios = require('axios');
 const logger = require('./utils/logger');
 
+/**
+ * Mail.tm API entegrasyonu ile bağımsız geçici e-posta servisi.
+ */
 class MailSystem {
     constructor() {
-        this.baseUrl = 'https://kodteslimal.com'; // PHP sitemizin adresi
+        this.apiBase = 'https://api.mail.tm';
+        this.address = null;
+        this.password = null;
+        this.token = null;
     }
 
     async init() {
-        logger.info('MailSystem initialized.');
+        logger.info('MailSystem (Mail.tm) başlatılıyor...');
     }
 
+    /**
+     * Mail.tm üzerinden yeni bir hesap oluşturur.
+     */
     async createAccount() {
         try {
-            const response = await axios.get(`${this.baseUrl}/api/mail/create`);
-            if (response.data && response.data.success) {
-                logger.info(`Mail account received: ${response.data.email}`);
-                return {
-                    email: response.data.email,
-                    token: response.data.token
-                };
-            }
-            throw new Error(response.data.error || 'Sistemden e-posta hesabı alınamadı.');
+            // 1. Kullanılabilir domainleri al
+            const domainsRes = await axios.get(`${this.apiBase}/domains`);
+            const domain = domainsRes.data['hydra:member'][0].domain;
+
+            // 2. Rastgele bilgiler oluştur
+            const id = Math.random().toString(36).substring(2, 10);
+            this.address = `${id}@${domain}`;
+            this.password = 'OsmBot123!';
+
+            // 3. Hesabı oluştur
+            await axios.post(`${this.apiBase}/accounts`, {
+                address: this.address,
+                password: this.password
+            });
+
+            // 4. Token (JWT) al
+            const tokenRes = await axios.post(`${this.apiBase}/token`, {
+                address: this.address,
+                password: this.password
+            });
+            this.token = tokenRes.data.token;
+
+            logger.info(`Mail.tm hesabı oluşturuldu: ${this.address}`);
+            
+            return {
+                email: this.address,
+                token: this.token // JWT token'ı kullanacağız
+            };
         } catch (error) {
-            logger.error(`MailSystem createAccount error: ${error.message}`);
+            logger.error(`Mail.tm hesap oluşturma hatası: ${error.message}`);
+            if (error.response) logger.error(JSON.stringify(error.response.data));
             throw error;
         }
     }
 
     /**
-     * Polling yaparak yeni doğrulama kodunu bekler.
+     * Gelen kutusunu polleyerek doğrulama kodunu bekler.
      */
     async waitForCode(token, timeout = 120000) {
         const startTime = Date.now();
-        logger.info(`Kod bekleniyor (Token: ${token})...`);
+        const jwt = token || this.token;
+        
+        logger.info(`Mail.tm üzerinden kod bekleniyor (${this.address})...`);
 
         while (Date.now() - startTime < timeout) {
             try {
-                const response = await axios.get(`${this.baseUrl}/api/mail/get-code`, {
-                    params: { token }
+                // 1. Mesaj listesini al
+                const messagesRes = await axios.get(`${this.apiBase}/messages`, {
+                    headers: { 'Authorization': `Bearer ${jwt}` }
                 });
 
-                if (response.data && response.data.success && response.data.code) {
-                    logger.info(`Kod bulundu: ${response.data.code}`);
-                    return response.data.code;
+                const messages = messagesRes.data['hydra:member'];
+                if (messages.length > 0) {
+                    // 2. En son mesajın içeriğini al
+                    const msgId = messages[0].id;
+                    const msgRes = await axios.get(`${this.apiBase}/messages/${msgId}`, {
+                        headers: { 'Authorization': `Bearer ${jwt}` }
+                    });
+
+                    const content = msgRes.data.text || msgRes.data.intro || '';
+                    logger.info('Yeni bir e-posta alındı, içerik taranıyor...');
+
+                    // 3. 6 haneli kodu ara (Örn: 123456)
+                    const codeMatch = content.match(/\b(\d{6})\b/);
+                    if (codeMatch) {
+                        logger.info(`Doğrulama kodu yakalandı: ${codeMatch[1]}`);
+                        return codeMatch[1];
+                    }
+                    
+                    // Alternatif: 5-8 haneli kodları da dene (OSM bazen değişebilir)
+                    const altMatch = content.match(/\b(\d{5,8})\b/);
+                    if (altMatch) {
+                        logger.info(`Alternatif doğrulama kodu yakalandı: ${altMatch[1]}`);
+                        return altMatch[1];
+                    }
                 }
             } catch (error) {
-                logger.warn(`MailSystem poll hatası: ${error.message}`);
+                logger.warn(`Mail.tm izleme hatası: ${error.message}`);
             }
 
             // 5 saniye bekle
             await new Promise(resolve => setTimeout(resolve, 5000));
         }
 
-        logger.warn('Kod bekleme süresi doldu (Timeout).');
+        logger.warn('Mail.tm kod bekleme süresi doldu (Timeout).');
         return null;
     }
 }
