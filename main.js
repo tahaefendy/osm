@@ -1,68 +1,55 @@
-const readline = require('readline');
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
 const sessionManager = require('./src/core/session');
 const browserManager = require('./src/core/browser');
 const RegisterFlow = require('./src/modules/register');
-const { logout } = require('./src/modules/logout');
 const { generateUsername } = require('./src/modules/usernameGenerator');
 const { generateEmail } = require('./src/utils/emailGenerator');
 const logger = require('./src/utils/logger');
-
-const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
-});
-
-const askQuestion = (query) => new Promise((resolve) => rl.question(query, resolve));
-
-/**
- * Main execution entry point
- */
-async function main() {
-    console.clear();
-    logger.info('=== OSM Professional Automation System ===');
-
-    try {
-        // 1. Get inputs from terminal
-        const inviteLink = await askQuestion('Invite Link: ');
-        const countStr = await askQuestion('Account Count: ');
-        const accountCount = parseInt(countStr) || 1;
-
-        if (!inviteLink) {
-            logger.error('Invite link is required!');
-            process.exit(1);
-        }
-
-        // 2. Main Loop
-        for (let i = 0; i < accountCount; i++) {
-            logger.info(`\n--- Starting Account ${i + 1}/${accountCount} ---`);
-            
-            const context = await sessionManager.createContext();
-            const page = await context.newPage();
-            
-            const username = generateUsername();
-            const email = generateEmail(username);
-            
-            const registerFlow = new RegisterFlow(page);
-            const success = await registerFlow.execute(inviteLink, { username, email });
-            
-            if (success) {
-                logger.info(`[SUCCESS] Account created: ${username} (${email})`);
-                await logout(page);
-            } else {
-                logger.warn(`[FAILED] Registration failed for ${username}`);
+// Not: Projenizde mail.js dosyasının adını ve yerini kontrol edip buraya yazın:
+const MailSystem = require('./src/mail'); 
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server, { cors: { origin: "*", methods: ["GET", "POST"] } });
+io.on('connection', (socket) => {
+    logger.info('Site üzerinden bağlantı sağlandı.');
+    socket.on('start-bot', async ({ key, link }) => {
+        logger.info(`İşlem başladı. Link: ${link}`);
+        socket.emit('log', { type: 'info', msg: 'Railway sunucusuna bağlanıldı, bot başlatılıyor...' });
+        try {
+            const mailer = new MailSystem();
+            await mailer.init();
+            for (let i = 0; i < 10; i++) {
+                const id = i + 1;
+                socket.emit('log', { type: 'system', msg: `Hesap ${id}/10 için işlem sırasına girildi...` });
+                const context = await sessionManager.createContext();
+                const page = await context.newPage();
+                
+                const username = generateUsername();
+                const emailAccount = await mailer.createAccount(); 
+                
+                const registerFlow = new RegisterFlow(page);
+                const success = await registerFlow.execute(link, { 
+                    username, 
+                    email: emailAccount.email, 
+                    mailToken: emailAccount.token 
+                }, mailer);
+                
+                if (success) {
+                    socket.emit('progress', { count: id, msg: `Hesap ${id} başarıyla tamamlandı.` });
+                } else {
+                    socket.emit('log', { type: 'error', msg: `Hesap ${id} oluşturulurken bir sorun oluştu.` });
+                }
+                await sessionManager.closeContext(context);
             }
-
-            await sessionManager.closeContext(context);
+            socket.emit('finished');
+        } catch (error) {
+            socket.emit('log', { type: 'error', msg: 'Hata: ' + error.message });
         }
-
-    } catch (error) {
-        logger.error(`Critical Error: ${error.message}`);
-    } finally {
-        await browserManager.close();
-        rl.close();
-        logger.info('=== Automation Finished ===');
-    }
-}
-
-// Start
-main();
+    });
+});
+const PORT = process.env.PORT || 8080;
+server.listen(PORT, '0.0.0.0', () => {
+    logger.info(`Bot ${PORT} portunda sitemizi dinliyor...`);
+});

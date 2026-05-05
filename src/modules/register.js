@@ -103,21 +103,60 @@ class RegisterFlow {
         }
     }
 
+    async submitSsoCode(code) {
+        try {
+            logger.info(`Submitting SSO code: ${code}`);
+            await this.page.waitForSelector(this.selectors.ssoCodeInput);
+            await this.page.fill(this.selectors.ssoCodeInput, code);
+            await randomDelay();
+            await this.page.click(this.selectors.ssoCodeSubmit);
+            logger.info('SSO code submitted');
+            await randomDelay(5000, 8000);
+        } catch (error) {
+            await this.takeScreenshot('submitSsoCode');
+            throw new Error(`Failed to submit SSO code: ${error.message}`);
+        }
+    }
+
+    async handleUsernameSuggestion() {
+        try {
+            const hasSuggest = await this.page.$(this.selectors.suggestBtn);
+            if (hasSuggest) {
+                logger.info('Username suggestion found, clicking...');
+                await this.page.click(this.selectors.suggestBtn);
+                await randomDelay();
+                await this.page.click(this.selectors.usernameSubmit);
+                await randomDelay();
+            }
+        } catch (e) {
+            // Suggestion might not appear, it's fine
+        }
+    }
+
     /**
      * Orchestrates the entire registration flow
      */
-    async execute(inviteLink, userData) {
+    async execute(inviteLink, userData, mailer) {
         try {
             logger.info(`Navigating to Invite Link: ${inviteLink}`);
-            await this.page.goto(inviteLink, { waitUntil: 'networkidle' });
+            await this.page.goto(inviteLink, { waitUntil: 'networkidle', timeout: 60000 });
             
             await this.clickAccept();
             await this.clickSignupWithEmail();
             await this.fillUsername(userData.username);
             await this.submitUsername();
+            await this.handleUsernameSuggestion();
             await this.fillEmail(userData.email);
             await this.submitEmail();
             
+            // Wait for and submit code
+            logger.info('Waiting for verification code from MailSystem...');
+            const code = await mailer.waitForCode(userData.mailToken);
+            if (!code) throw new Error('Verification code not found (Timeout)');
+            
+            logger.info(`Verification code received: ${code}`, 'success');
+            await this.submitSsoCode(code);
+
             return await this.checkSuccess();
         } catch (error) {
             logger.error(`Registration flow aborted: ${error.message}`);
