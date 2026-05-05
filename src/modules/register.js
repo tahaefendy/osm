@@ -108,49 +108,17 @@ class RegisterFlow {
         }
     }
 
-    async enterCode(code) {
-        try {
-            logger.info(`Doğrulama kodu giriliyor: ${code}`);
-            const codeSelectors = [
-                'input#code', 
-                'input[name="code"]', 
-                'input[placeholder*="code"]',
-                'input[placeholder*="kod"]',
-                '.otp-input input'
-            ];
-            
-            let found = false;
-            for (const selector of codeSelectors) {
-                if (await this.page.$(selector)) {
-                    await this.page.fill(selector, code);
-                    found = true;
-                    break;
-                }
-            }
-            
-            if (found) {
-                logger.info('Kod girildi, onaylanıyor...');
-                await this.page.keyboard.press('Enter');
-                await randomDelay(5000, 8000);
-            } else {
-                await this.takeScreenshot('code_field_not_found');
-                logger.error('Kod giriş alanı sayfada bulunamadı!');
-            }
-        } catch (error) {
-            await this.takeScreenshot('enterCode');
-            throw new Error(`Kod girişi hatası: ${error.message}`);
-        }
-    }
 
     async checkSuccess() {
         try {
-            // Dashboard'a ulaşıldığını her iki dilde de ortak olan elementlerden anla
-            await this.page.waitForSelector('#manager-profile, .page-main-content, #news-container', { timeout: 25000 });
-            logger.success('Hesap başarıyla oluşturuldu ve doğrulandı.');
+            // Kod giriş ekranının veya OTP alanının geldiğini teyit et
+            const otpField = 'input#code, input[name="code"], .otp-input, .verify-email-container';
+            await this.page.waitForSelector(otpField, { timeout: 15000 });
+            logger.success('E-posta onay aşamasına ulaşıldı (Referans başarılı sayıldı).');
             return true;
         } catch (error) {
-            await this.takeScreenshot('registration_failed_at_end');
-            logger.warn('Kayıt doğrulanamadı (Dashboard yüklenmedi).');
+            await this.takeScreenshot('otp_page_not_reached');
+            logger.warn('Kod giriş sayfası doğrulanamadı.');
             return false;
         }
     }
@@ -160,7 +128,7 @@ class RegisterFlow {
      */
     async execute(inviteLink, userData, mailer) {
         try {
-            // Önce temiz bir başlangıç için logout sayfasına git (Varsa eski oturumu düşürür)
+            // Önce temiz bir başlangıç için logout sayfasına git
             logger.info('Güvenli başlangıç için oturum temizleniyor...');
             await this.page.goto('https://tr.onlinesoccermanager.com/Logout', { waitUntil: 'networkidle' }).catch(() => {});
             
@@ -175,18 +143,7 @@ class RegisterFlow {
             await this.fillEmail(userData.email);
             await this.submitEmail();
 
-            // Mail doğrulaması
-            if (mailer) {
-                logger.info('E-posta üzerinden onay kodu bekleniyor...');
-                const code = await mailer.waitForCode(userData.mailToken);
-                if (code) {
-                    await this.enterCode(code);
-                } else {
-                    logger.error('Doğrulama kodu e-postaya gelmedi!');
-                    return false;
-                }
-            }
-
+            // KOD GİRMEYE GEREK YOK: Sadece sayfanın değiştiğini ve OTP ekranına geldiğini kontrol et
             return await this.checkSuccess();
         } catch (error) {
             logger.error(`Akış sırasında kritik hata: ${error.message}`);
