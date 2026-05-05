@@ -51,7 +51,8 @@ class MailSystem {
             
             return {
                 email: this.address,
-                token: this.token
+                token: this.token,
+                password: this.password
             };
         } catch (error) {
             if (error.response && error.response.status === 429 && retryCount < 3) {
