@@ -13,7 +13,8 @@ async function saveRegistration(data) {
             userId: data.userId,
             link: data.link,
             username: data.username,
-            email: data.email
+            email: data.email,
+            password: data.password
         }, {
             timeout: 10000
         });
