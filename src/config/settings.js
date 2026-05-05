@@ -4,7 +4,14 @@ module.exports = {
     browser: {
         headed: false, // Railway için false, yerel test için true yapabilirsiniz
         timeout: 30000,
-        viewport: { width: 1280, height: 720 }
+        viewport: { width: 1280, height: 720 },
+        // Proxy Ayarları (Opsiyonel)
+        // Kullanmak için server kısmını 'http://ip:port' şeklinde doldurun
+        proxy: {
+            server: '', // Örn: 'http://1.2.3.4:8080'
+            username: '', 
+            password: ''
+        }
     },
     delay: {
         min: 2000,

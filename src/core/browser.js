@@ -15,7 +15,8 @@ class BrowserManager {
         if (!this.browser) {
             logger.system('Playwright motoru başlatılıyor...');
             chromium.use(stealth);
-            this.browser = await chromium.launch({
+
+            const launchOptions = {
                 headless: settings.browser.headed === false,
                 args: [
                     '--no-sandbox',
@@ -27,7 +28,19 @@ class BrowserManager {
                     '--font-render-hinting=none',
                     '--disable-notifications'
                 ]
-            });
+            };
+
+            // Eğer proxy tanımlanmışsa ekle
+            if (settings.browser.proxy && settings.browser.proxy.server) {
+                logger.info(`Proxy kullanılıyor: ${settings.browser.proxy.server}`);
+                launchOptions.proxy = {
+                    server: settings.browser.proxy.server,
+                    username: settings.browser.proxy.username,
+                    password: settings.browser.proxy.password
+                };
+            }
+
+            this.browser = await chromium.launch(launchOptions);
         }
         return this.browser;
     }
