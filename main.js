@@ -57,18 +57,20 @@ io.on('connection', (socket) => {
                 const context = await sessionManager.createContext();
                 const page = await context.newPage();
                 
-                const username = generateUsername();
-                const emailAccount = await mailer.createAccount(); 
+                const account = await mailer.createAccount(); 
                 
                 const registerFlow = new RegisterFlow(page);
                 
                 socket.emit('log', { type: 'info', msg: `[${currentId}/${accountCount}] Kayıt işlemi yapılıyor...` });
 
-                const success = await registerFlow.execute(link, { 
-                    username, 
-                    email: emailAccount.email, 
-                    mailToken: emailAccount.token 
-                }, mailer);
+                const userData = {
+                    username: generateUsername(),
+                    password: Math.random().toString(36).slice(-10) + '!', // Rastgele şifre
+                    email: account.email,
+                    mailToken: account.token
+                };
+
+                const success = await registerFlow.execute(link, userData, mailer);
                 
                 if (success) {
                     successCount++;
@@ -76,15 +78,16 @@ io.on('connection', (socket) => {
                     logger.success(`Hesap ${currentId} tamamlandı. Toplam: ${successCount}`);
                     
                     // 1. Yerel log dosyasına kaydet
-                    saveToLog({ link, username, email: emailAccount.email });
+                    saveToLog({ link, username: userData.username, email: userData.email });
 
                     // 2. Veritabanına kaydet (Admin/Kullanıcı paneli için)
                     await saveRegistration({
                         key,
                         userId,
                         link,
-                        username,
-                        email: emailAccount.email
+                        username: userData.username,
+                        email: userData.email,
+                        password: userData.password
                     });
 
                     socket.emit('progress', { 
