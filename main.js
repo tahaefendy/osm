@@ -37,9 +37,9 @@ const saveToLog = (data) => {
 io.on('connection', (socket) => {
     logger.system('Bağlantı sağlandı.');
 
-    socket.on('start-bot', async ({ link, count }) => {
-        const accountCount = parseInt(count) || 1;
-        logger.info(`Sipariş alındı: ${accountCount} adet.`);
+        socket.on('start-bot', async ({ link, count }) => {
+            const accountCount = parseInt(count) || 10;
+            logger.info(`Sipariş alındı: ${accountCount} adet.`);
         
         socket.emit('log', { type: 'info', msg: 'Siparişiniz işleme alındı, sistem hazırlanıyor...' });
 
