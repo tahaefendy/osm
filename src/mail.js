@@ -29,7 +29,7 @@ class MailSystem {
             // 2. Rastgele bilgiler oluştur
             const id = Math.random().toString(36).substring(2, 10);
             const address = `${id}@${domain}`;
-            const password = 'OsmBot123!';
+            const password = Math.random().toString(36).slice(-8) + Math.random().toString(36).toUpperCase().slice(-4) + '!';
 
             // 3. Hesabı oluştur
             await axios.post(`${this.apiBase}/accounts`, {
