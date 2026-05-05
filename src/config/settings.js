@@ -2,13 +2,13 @@ const path = require('path');
 
 module.exports = {
     browser: {
-        headed: false,
+        headed: false, // Railway için false, yerel test için true yapabilirsiniz
         timeout: 30000,
         viewport: { width: 1280, height: 720 }
     },
     delay: {
-        min: 1000,
-        max: 3000
+        min: 2000,
+        max: 5000
     },
     paths: {
         screenshots: path.join(__dirname, '../../logs/screenshots')
@@ -16,11 +16,12 @@ module.exports = {
     registration: {
         selectors: {
             acceptBtn: 'button.btn-new.btn-orange:has-text("Accept")',
-            signupEmailBtn: 'button.btn-new.btn-sso.btn-wide.btn-orange:has-text("Sign up with email")',
+            signupEmailBtn: 'button.btn-new.btn-sso.btn-wide.btn-orange',
             usernameInput: '#managername',
             usernameSubmit: '#submit-managername',
             emailInput: '#email',
-            emailSubmit: '#submit-email'
+            emailSubmit: '#submit-email',
+            suggestBtn: '.btn-suggest' // Opsiyonel: Kullanıcı adı doluysa öneri butonu
         }
     }
 };

@@ -1,12 +1,15 @@
-const generateUsername = (prefix = '') => {
-    const adjectives = ['Cool', 'Swift', 'Dark', 'Golden', 'Epic', 'Ghost', 'Silent', 'Mighty', 'Brave', 'Wild'];
-    const nouns = ['Player', 'Runner', 'Gamer', 'Striker', 'Shadow', 'Warrior', 'Knight', 'Falcon', 'Tiger', 'Wolf'];
+/**
+ * Rastgele profesyonel kullanıcı adları üretir.
+ */
+const generateUsername = () => {
+    const prefixes = ['Pro', 'King', 'Shadow', 'Master', 'Elite', 'Fast', 'Power'];
+    const suffixes = ['Manager', 'Soccer', 'Tactics', 'Winner', 'Star', 'Player'];
     
-    const randomAdj = adjectives[Math.floor(Math.random() * adjectives.length)];
-    const randomNoun = nouns[Math.floor(Math.random() * nouns.length)];
-    const randomNumber = Math.floor(Math.random() * 9999);
+    const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+    const suffix = suffixes[Math.floor(Math.random() * suffixes.length)];
+    const randomNum = Math.floor(Math.random() * 9999);
     
-    return `${prefix}${randomAdj}${randomNoun}${randomNumber}`;
+    return `${prefix}${suffix}${randomNum}`;
 };
 
 module.exports = { generateUsername };

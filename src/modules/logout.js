@@ -2,18 +2,18 @@ const logger = require('../utils/logger');
 const { randomDelay } = require('../utils/delay');
 
 /**
- * Logout logic placeholder.
- * @param {import('playwright').Page} page 
+ * Oturumu kapatır ve bir sonraki işleme hazırlar.
  */
-async function logout(page) {
+const logout = async (page) => {
     try {
-        logger.info('Starting logout process...');
-        // TODO: Implement logout clicks
+        logger.info('Oturum kapatılıyor (Logout)...');
+        // OSM logout URL'sine direkt gitmek daha güvenlidir
+        await page.goto('https://tr.onlinesoccermanager.com/Logout', { waitUntil: 'networkidle' });
         await randomDelay();
-        logger.info('Logout completed.');
+        logger.info('Oturum başarıyla kapatıldı.');
     } catch (error) {
-        logger.error(`Logout failed: ${error.message}`);
+        logger.warn('Logout sırasında hata oluştu, devam ediliyor...');
     }
-}
+};
 
 module.exports = { logout };

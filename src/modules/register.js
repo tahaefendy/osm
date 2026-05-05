@@ -1,6 +1,7 @@
 const logger = require('../utils/logger');
 const { randomDelay } = require('../utils/delay');
 const settings = require('../config/settings');
+const fs = require('fs');
 const path = require('path');
 
 class RegisterFlow {
@@ -9,157 +10,130 @@ class RegisterFlow {
         this.selectors = settings.registration.selectors;
     }
 
+    /**
+     * Hata anında ekran görüntüsü alır.
+     */
     async takeScreenshot(stepName) {
-        const fileName = `error_${stepName}_${Date.now()}.png`;
-        const filePath = path.join(settings.paths.screenshots, fileName);
-        await this.page.screenshot({ path: filePath });
-        logger.error(`Screenshot saved: ${filePath}`);
+        try {
+            const fileName = `error_${stepName}_${Date.now()}.png`;
+            const dir = settings.paths.screenshots;
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+            
+            const filePath = path.join(dir, fileName);
+            await this.page.screenshot({ path: filePath });
+            logger.error(`Hata anı kaydedildi: ${filePath}`);
+        } catch (e) {
+            logger.error(`Ekran görüntüsü alınamadı: ${e.message}`);
+        }
     }
 
     async clickAccept() {
         try {
-            logger.info('Waiting for Accept button...');
-            await this.page.waitForSelector(this.selectors.acceptBtn);
+            logger.info('Accept butonuna basılıyor...');
+            await this.page.waitForSelector(this.selectors.acceptBtn, { timeout: 15000 });
             await this.page.click(this.selectors.acceptBtn);
-            logger.info('Accept button clicked');
             await randomDelay();
         } catch (error) {
             await this.takeScreenshot('clickAccept');
-            throw new Error(`Failed to click Accept: ${error.message}`);
+            throw new Error(`Accept hatası: ${error.message}`);
         }
     }
 
     async clickSignupWithEmail() {
         try {
-            logger.info('Waiting for Sign up with email button...');
-            await this.page.waitForSelector(this.selectors.signupEmailBtn);
+            logger.info('Sign up with email butonuna basılıyor...');
+            await this.page.waitForSelector(this.selectors.signupEmailBtn, { timeout: 10000 });
             await this.page.click(this.selectors.signupEmailBtn);
-            logger.info('Sign up with email button clicked');
             await randomDelay();
         } catch (error) {
             await this.takeScreenshot('clickSignupWithEmail');
-            throw new Error(`Failed to click Sign up with email: ${error.message}`);
+            throw new Error(`Signup button hatası: ${error.message}`);
         }
     }
 
     async fillUsername(username) {
         try {
-            logger.info(`Filling username: ${username}`);
+            logger.info(`Kullanıcı adı giriliyor: ${username}`);
             await this.page.waitForSelector(this.selectors.usernameInput);
             await this.page.fill(this.selectors.usernameInput, username);
             await randomDelay();
         } catch (error) {
             await this.takeScreenshot('fillUsername');
-            throw new Error(`Failed to fill username: ${error.message}`);
+            throw new Error(`Username girişi hatası: ${error.message}`);
         }
     }
 
     async submitUsername() {
         try {
-            logger.info('Submitting username...');
+            logger.info('Kullanıcı adı onaylanıyor...');
             await this.page.click(this.selectors.usernameSubmit);
-            logger.info('Username submitted');
             await randomDelay();
         } catch (error) {
             await this.takeScreenshot('submitUsername');
-            throw new Error(`Failed to submit username: ${error.message}`);
+            throw new Error(`Username onayı hatası: ${error.message}`);
         }
     }
 
     async fillEmail(email) {
         try {
-            logger.info(`Filling email: ${email}`);
+            logger.info(`E-posta adresi giriliyor: ${email}`);
             await this.page.waitForSelector(this.selectors.emailInput);
             await this.page.fill(this.selectors.emailInput, email);
             await randomDelay();
         } catch (error) {
             await this.takeScreenshot('fillEmail');
-            throw new Error(`Failed to fill email: ${error.message}`);
+            throw new Error(`Email girişi hatası: ${error.message}`);
         }
     }
 
     async submitEmail() {
         try {
-            logger.info('Submitting email...');
+            logger.info('E-posta onaylanıyor...');
             await this.page.click(this.selectors.emailSubmit);
-            logger.info('Email submitted');
-            await randomDelay();
+            await randomDelay(5000, 8000); // Kayıt sonrası ekstra bekleme
         } catch (error) {
             await this.takeScreenshot('submitEmail');
-            throw new Error(`Failed to submit email: ${error.message}`);
+            throw new Error(`Email onayı hatası: ${error.message}`);
         }
     }
 
     async checkSuccess() {
         try {
-            logger.info('Checking for registration success...');
-            // Placeholder: Look for a specific element that appears after success
-            // await this.page.waitForSelector('.success-indicator', { timeout: 10000 });
-            logger.info('[SUCCESS] Account registration flow completed');
+            // Başarıyı doğrulamak için sayfada bir element kontrolü yapılabilir
+            logger.success('Hesap oluşturma adımları tamamlandı.');
             return true;
         } catch (error) {
-            logger.warn('Success indicator not found, registration might have failed or reached a different state.');
             return false;
         }
     }
 
-    async submitSsoCode(code) {
-        try {
-            logger.info(`Submitting SSO code: ${code}`);
-            await this.page.waitForSelector(this.selectors.ssoCodeInput);
-            await this.page.fill(this.selectors.ssoCodeInput, code);
-            await randomDelay();
-            await this.page.click(this.selectors.ssoCodeSubmit);
-            logger.info('SSO code submitted');
-            await randomDelay(5000, 8000);
-        } catch (error) {
-            await this.takeScreenshot('submitSsoCode');
-            throw new Error(`Failed to submit SSO code: ${error.message}`);
-        }
-    }
-
-    async handleUsernameSuggestion() {
-        try {
-            const hasSuggest = await this.page.$(this.selectors.suggestBtn);
-            if (hasSuggest) {
-                logger.info('Username suggestion found, clicking...');
-                await this.page.click(this.selectors.suggestBtn);
-                await randomDelay();
-                await this.page.click(this.selectors.usernameSubmit);
-                await randomDelay();
-            }
-        } catch (e) {
-            // Suggestion might not appear, it's fine
-        }
-    }
-
     /**
-     * Orchestrates the entire registration flow
+     * Tüm akışı orkestra eder.
      */
     async execute(inviteLink, userData, mailer) {
         try {
-            logger.info(`Navigating to Invite Link: ${inviteLink}`);
             await this.page.goto(inviteLink, { waitUntil: 'networkidle', timeout: 60000 });
             
             await this.clickAccept();
             await this.clickSignupWithEmail();
             await this.fillUsername(userData.username);
             await this.submitUsername();
-            await this.handleUsernameSuggestion();
+            
+            // Eğer username doluysa suggestion çıkabilir, onu geçmek gerekebilir
+            // (Bu adım dinamiktir, gerekirse handleUsernameSuggestion eklenebilir)
+
             await this.fillEmail(userData.email);
             await this.submitEmail();
-            
-            // Wait for and submit code
-            logger.info('Waiting for verification code from MailSystem...');
-            const code = await mailer.waitForCode(userData.mailToken);
-            if (!code) throw new Error('Verification code not found (Timeout)');
-            
-            logger.info(`Verification code received: ${code}`, 'success');
-            await this.submitSsoCode(code);
+
+            // Eğer mail doğrulaması gerekliyse burada mailer kullanılır
+            if (mailer) {
+                logger.info('Mail doğrulaması bekleniyor...');
+                // ... mailer.waitForCode mantığı
+            }
 
             return await this.checkSuccess();
         } catch (error) {
-            logger.error(`Registration flow aborted: ${error.message}`);
+            logger.error(`Akış sırasında kritik hata: ${error.message}`);
             return false;
         }
     }

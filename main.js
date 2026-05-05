@@ -1,62 +1,85 @@
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
+const readline = require('readline');
 const sessionManager = require('./src/core/session');
 const browserManager = require('./src/core/browser');
 const RegisterFlow = require('./src/modules/register');
+const { logout } = require('./src/modules/logout');
 const { generateUsername } = require('./src/modules/usernameGenerator');
-const { generateEmail } = require('./src/utils/emailGenerator');
+const MailSystem = require('./src/mail'); // Mail.tm entegrasyonumuz
 const logger = require('./src/utils/logger');
-// Not: Projenizde mail.js dosyasının adını ve yerini kontrol edip buraya yazın:
-const MailSystem = require('./src/mail'); 
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*", methods: ["GET", "POST"] } });
-io.on('connection', (socket) => {
-    logger.info('Site üzerinden bağlantı sağlandı.');
-    socket.on('start-bot', async ({ key, link }) => {
-        logger.info(`İşlem başladı. Link: ${link}`);
-        socket.emit('log', { type: 'info', msg: 'Railway sunucusuna bağlanıldı, bot başlatılıyor...' });
-        try {
-            const mailer = new MailSystem();
-            await mailer.init();
-            for (let i = 0; i < 10; i++) {
-                const id = i + 1;
-                socket.emit('log', { type: 'system', msg: `Hesap ${id}/10 için işlem sırasına girildi...` });
-                const context = await sessionManager.createContext();
-                const page = await context.newPage();
-                
-                const username = generateUsername();
-                const emailAccount = await mailer.createAccount(); 
-                
-                const registerFlow = new RegisterFlow(page);
-                const success = await registerFlow.execute(link, { 
-                    username, 
-                    email: emailAccount.email, 
-                    mailToken: emailAccount.token 
-                }, mailer);
-                
-                if (success) {
-                    socket.emit('progress', { count: id, msg: `Hesap ${id} başarıyla tamamlandı.` });
-                } else {
-                    socket.emit('log', { type: 'error', msg: `Hesap ${id} oluşturulurken bir sorun oluştu.` });
-                }
-                await sessionManager.closeContext(context);
 
-                // Hesaplar arası rastgele bekleme (15-30 sn)
-                if (i < 9) {
-                    const waitTime = Math.floor(Math.random() * 15000) + 15000;
-                    logger.info(`${waitTime / 1000} saniye bekleniyor...`);
-                    await new Promise(resolve => setTimeout(resolve, waitTime));
-                }
-            }
-            socket.emit('finished');
-        } catch (error) {
-            socket.emit('log', { type: 'error', msg: 'Hata: ' + error.message });
+const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+});
+
+const askQuestion = (query) => new Promise((resolve) => rl.question(query, resolve));
+
+/**
+ * Ana Uygulama Başlangıç Noktası
+ */
+async function main() {
+    console.clear();
+    logger.system('=== OSM Profesyonel Otomasyon Sistemi ===');
+
+    try {
+        // 1. Kullanıcıdan bilgileri al
+        const inviteLink = await askQuestion('Invite Link: ');
+        const countStr = await askQuestion('Account Count: ');
+        const accountCount = parseInt(countStr) || 1;
+
+        if (!inviteLink) {
+            logger.error('Invite link zorunludur!');
+            process.exit(1);
         }
-    });
-});
-const PORT = process.env.PORT || 8080;
-server.listen(PORT, '0.0.0.0', () => {
-    logger.info(`Bot ${PORT} portunda sitemizi dinliyor...`);
-});
+
+        const mailer = new MailSystem();
+        await mailer.init();
+
+        // 2. Döngü - Her hesap için yeni context
+        for (let i = 0; i < accountCount; i++) {
+            logger.system(`\n--- Hesap ${i + 1}/${accountCount} Başlatılıyor ---`);
+            
+            const context = await sessionManager.createContext();
+            const page = await context.newPage();
+            
+            const username = generateUsername();
+            
+            // Mail oluştur
+            const emailAccount = await mailer.createAccount();
+            
+            const registerFlow = new RegisterFlow(page);
+            const success = await registerFlow.execute(inviteLink, { 
+                username, 
+                email: emailAccount.email,
+                mailToken: emailAccount.token
+            }, mailer);
+            
+            if (success) {
+                logger.success(`Hesap oluşturuldu: ${username} (${emailAccount.email})`);
+                await logout(page);
+            } else {
+                logger.warn(`Kayıt başarısız: ${username}`);
+            }
+
+            // Context'i kapat (bellek yönetimi)
+            await sessionManager.closeContext(context);
+            
+            // Hesaplar arası bekleme
+            if (i < accountCount - 1) {
+                const wait = Math.floor(Math.random() * 10000) + 10000;
+                logger.info(`${wait/1000} saniye sonra yeni hesaba geçilecek...`);
+                await new Promise(r => setTimeout(r, wait));
+            }
+        }
+
+    } catch (error) {
+        logger.error(`Kritik Sistem Hatası: ${error.message}`);
+    } finally {
+        await browserManager.close();
+        rl.close();
+        logger.system('=== Otomasyon Tamamlandı ===');
+    }
+}
+
+// Başlat
+main();

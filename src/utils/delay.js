@@ -1,10 +1,11 @@
 const settings = require('../config/settings');
 
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-const randomDelay = async () => {
-    const ms = Math.floor(Math.random() * (settings.delay.max - settings.delay.min + 1) + settings.delay.min);
-    await delay(ms);
+/**
+ * Belirtilen aralıkta rastgele bir süre bekler.
+ */
+const randomDelay = async (min = settings.delay.min, max = settings.delay.max) => {
+    const delay = Math.floor(Math.random() * (max - min + 1) + min);
+    return new Promise(resolve => setTimeout(resolve, delay));
 };
 
-module.exports = { delay, randomDelay };
+module.exports = { randomDelay };

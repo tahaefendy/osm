@@ -1,49 +1,32 @@
 const browserManager = require('./browser');
 const settings = require('../config/settings');
 const { getRandomUA } = require('../utils/userAgents');
-const logger = require('../utils/logger');
 
+/**
+ * İzole Context Yönetimi - Her hesap için yeni bir temiz oturum açar.
+ */
 class SessionManager {
-    /**
-     * Creates a new isolated browser context with its own cookies and storage.
-     */
     async createContext() {
-        const browser = await browserManager.init();
-        const userAgent = getRandomUA();
-        
-        logger.info(`Creating isolated context with User-Agent: ${userAgent}`);
-        
-        try {
-            const context = await browser.newContext({
-                userAgent: userAgent,
-                viewport: { width: 1280, height: 720 },
-                // Extra stealth: mask webdriver
-                extraHTTPHeaders: {
-                    'Accept-Language': 'en-US,en;q=0.9'
-                }
-            });
+        const browser = await browserManager.getBrowser();
+        const context = await browser.newContext({
+            userAgent: getRandomUA(),
+            viewport: settings.browser.viewport,
+            deviceScaleFactor: 1,
+            hasTouch: false,
+            javaScriptEnabled: true
+        });
 
-            // Set global timeout for this context
-            context.setDefaultTimeout(settings.browser.timeout);
-            
-            return context;
-        } catch (error) {
-            logger.error(`Failed to create browser context: ${error.message}`);
-            throw error;
-        }
+        // Anti-bot için ekstra özellikler
+        await context.addInitScript(() => {
+            Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+        });
+
+        return context;
     }
 
-    /**
-     * Closes the context and clears all session data.
-     */
     async closeContext(context) {
         if (context) {
-            logger.info('Closing context and cleaning up session (cookies/storage)...');
-            try {
-                await context.close();
-            } catch (error) {
-                logger.error(`Error while closing context: ${error.message}`);
-            }
+            await context.close();
         }
     }
 }
