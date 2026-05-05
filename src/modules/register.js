@@ -117,9 +117,8 @@ class RegisterFlow {
             logger.success('E-posta onay aşamasına ulaşıldı (Referans başarılı sayıldı).');
             return true;
         } catch (error) {
-            await this.takeScreenshot('otp_page_not_reached');
-            logger.warn('Kod giriş sayfası doğrulanamadı.');
-            return false;
+            await this.takeScreenshot('otp_page_timeout');
+            throw new Error('E-posta onay (OTP) ekranına ulaşılamadı. (Captcha çıkmış veya kayıt engellenmiş olabilir)');
         }
     }
 
@@ -128,12 +127,15 @@ class RegisterFlow {
      */
     async execute(inviteLink, userData, mailer) {
         try {
-            // Önce temiz bir başlangıç için logout sayfasına git
             logger.info('Güvenli başlangıç için oturum temizleniyor...');
             await this.page.goto('https://tr.onlinesoccermanager.com/Logout', { waitUntil: 'networkidle' }).catch(() => {});
             
             logger.info(`İşlem başlatıldı: ${inviteLink}`);
-            await this.page.goto(inviteLink, { waitUntil: 'networkidle', timeout: 60000 });
+            try {
+                await this.page.goto(inviteLink, { waitUntil: 'networkidle', timeout: 45000 });
+            } catch (e) {
+                throw new Error('Davet linki yüklenemedi (Bağlantı yavaş veya IP engeli).');
+            }
             
             await this.clickAccept();
             await this.clickSignupWithEmail();
@@ -143,10 +145,11 @@ class RegisterFlow {
             await this.fillEmail(userData.email);
             await this.submitEmail();
 
-            // KOD GİRMEYE GEREK YOK: Sadece sayfanın değiştiğini ve OTP ekranına geldiğini kontrol et
             return await this.checkSuccess();
         } catch (error) {
-            logger.error(`Akış sırasında kritik hata: ${error.message}`);
+            logger.error(`Akış hatası: ${error.message}`);
+            // Hata mesajını frontend loguna da gönderelim (main.js üzerinden geçecek)
+            this.lastError = error.message;
             return false;
         }
     }

@@ -95,7 +95,8 @@ io.on('connection', (socket) => {
                     });
                     
                 } else {
-                    socket.emit('log', { type: 'error', msg: `[${currentId}/${accountCount}] Kayıt başarısız oldu, sıradaki denemeye geçiliyor.` });
+                    const errorMsg = registerFlow.lastError || 'Bilinmeyen bir hata oluştu.';
+                    socket.emit('log', { type: 'error', msg: `[${currentId}/${accountCount}] Kayıt başarısız: ${errorMsg}` });
                 }
 
                 // Her durumda oturumu kapat ve temizle
