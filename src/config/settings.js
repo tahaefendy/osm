@@ -2,7 +2,7 @@ const path = require('path');
 
 module.exports = {
     browser: {
-        headed: true,
+        headed: false,
         timeout: 30000,
         viewport: { width: 1280, height: 720 }
     },
