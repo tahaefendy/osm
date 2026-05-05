@@ -42,14 +42,14 @@ class RegisterFlow {
 
     async clickSignupWithEmail() {
         try {
-            logger.info('E-posta ile kayıt butonuna basılıyor...');
+            logger.info('E-postayla kaydol butonuna basılıyor (Bilingual)...');
             const selector = this.selectors.signupEmailBtn;
-            await this.page.waitForSelector(selector, { timeout: 10000 });
+            await this.page.waitForSelector(selector, { timeout: 15000 });
             await this.page.click(selector);
             await randomDelay();
         } catch (error) {
             await this.takeScreenshot('clickSignupWithEmail');
-            throw new Error(`Kayıt butonu bulunamadı (Dil veya selector kaynaklı olabilir): ${error.message}`);
+            throw new Error(`"E-postayla kaydol" butonu bulunamadı. (Dil veya IP engeli kaynaklı olabilir)`);
         }
     }
 

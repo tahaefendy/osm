@@ -4,14 +4,7 @@ module.exports = {
     browser: {
         headed: false, // Railway için false, yerel test için true yapabilirsiniz
         timeout: 30000,
-        viewport: { width: 1280, height: 720 },
-        // Proxy Ayarları (Opsiyonel)
-        // Kullanmak için server kısmını 'http://ip:port' şeklinde doldurun
-        proxy: {
-            server: '', // Örn: 'http://1.2.3.4:8080'
-            username: '', 
-            password: ''
-        }
+        viewport: { width: 1280, height: 720 }
     },
     delay: {
         min: 2000,
@@ -22,17 +15,15 @@ module.exports = {
     },
     registration: {
         selectors: {
-            // Hem "Accept" hem "Kabul et" metinlerini kapsar
-            acceptBtn: 'button.btn-new.btn-orange:has-text("Accept"), button.btn-new.btn-orange:has-text("Kabul et")',
-            
-            // Sınıf bazlı (dil bağımsız)
-            signupEmailBtn: 'button.btn-new.btn-sso.btn-wide.btn-orange',
+            // Span içeriğine göre iki dilde kontrol
+            acceptBtn: 'button.btn-new.btn-orange:has(span:has-text("Accept")), button.btn-new.btn-orange:has(span:has-text("Kabul et"))',
+            signupEmailBtn: 'button.btn-sso:has(span:has-text("Sign up with email")), button.btn-sso:has(span:has-text("E-postayla kaydol"))',
             
             usernameInput: '#managername',
-            usernameSubmit: '#submit-managername',
+            usernameSubmit: '#submit-managername', // Hesap oluştur
             
             emailInput: '#email',
-            emailSubmit: '#submit-email',
+            emailSubmit: '#submit-email', // Kod gönder
             
             suggestBtn: '.btn-suggest, button:has-text("Suggest"), button:has-text("Öner")'
         }
